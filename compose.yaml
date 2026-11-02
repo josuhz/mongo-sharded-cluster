@@ -1,0 +1,117 @@
+name: mongo-sharded-lab
+
+# Configuración reutilizada por todos los procesos de MongoDB.
+x-mongo-common: &mongo-common
+  image: mongo:8.0.32-noble
+  restart: unless-stopped
+  networks:
+    - mongo-cluster
+  healthcheck:
+    test: ["CMD", "mongosh", "--quiet", "--host", "127.0.0.1", "--eval", "db.adminCommand({ ping: 1 }).ok"]
+    interval: 5s
+    timeout: 3s
+    retries: 30
+    start_period: 10s
+
+services:
+  # Replica set que guarda los metadatos del clúster.
+  cfg1:
+    <<: *mongo-common
+    hostname: cfg1
+    command: ["mongod", "--configsvr", "--replSet", "cfgRS", "--port", "27017", "--bind_ip_all"]
+    volumes:
+      - cfg1-data:/data/db
+
+  cfg2:
+    <<: *mongo-common
+    hostname: cfg2
+    command: ["mongod", "--configsvr", "--replSet", "cfgRS", "--port", "27017", "--bind_ip_all"]
+    volumes:
+      - cfg2-data:/data/db
+
+  cfg3:
+    <<: *mongo-common
+    hostname: cfg3
+    command: ["mongod", "--configsvr", "--replSet", "cfgRS", "--port", "27017", "--bind_ip_all"]
+    volumes:
+      - cfg3-data:/data/db
+
+  # Primer shard: un replica set de tres miembros.
+  shard1a:
+    <<: *mongo-common
+    hostname: shard1a
+    command: ["mongod", "--shardsvr", "--replSet", "shard1RS", "--port", "27017", "--bind_ip_all"]
+    volumes:
+      - shard1a-data:/data/db
+
+  shard1b:
+    <<: *mongo-common
+    hostname: shard1b
+    command: ["mongod", "--shardsvr", "--replSet", "shard1RS", "--port", "27017", "--bind_ip_all"]
+    volumes:
+      - shard1b-data:/data/db
+
+  shard1c:
+    <<: *mongo-common
+    hostname: shard1c
+    command: ["mongod", "--shardsvr", "--replSet", "shard1RS", "--port", "27017", "--bind_ip_all"]
+    volumes:
+      - shard1c-data:/data/db
+
+  # Segundo shard: otro replica set de tres miembros.
+  shard2a:
+    <<: *mongo-common
+    hostname: shard2a
+    command: ["mongod", "--shardsvr", "--replSet", "shard2RS", "--port", "27017", "--bind_ip_all"]
+    volumes:
+      - shard2a-data:/data/db
+
+  shard2b:
+    <<: *mongo-common
+    hostname: shard2b
+    command: ["mongod", "--shardsvr", "--replSet", "shard2RS", "--port", "27017", "--bind_ip_all"]
+    volumes:
+      - shard2b-data:/data/db
+
+  shard2c:
+    <<: *mongo-common
+    hostname: shard2c
+    command: ["mongod", "--shardsvr", "--replSet", "shard2RS", "--port", "27017", "--bind_ip_all"]
+    volumes:
+      - shard2c-data:/data/db
+
+  # Router: las aplicaciones se conectan aquí y no directamente a los shards.
+  mongos:
+    <<: *mongo-common
+    hostname: mongos
+    command:
+      - mongos
+      - --configdb
+      - cfgRS/cfg1:27017,cfg2:27017,cfg3:27017
+      - --bind_ip_all
+      - --port
+      - "27017"
+    depends_on:
+      cfg1:
+        condition: service_healthy
+      cfg2:
+        condition: service_healthy
+      cfg3:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:27017:27017"
+
+networks:
+  mongo-cluster:
+    driver: bridge
+
+volumes:
+  cfg1-data:
+  cfg2-data:
+  cfg3-data:
+  shard1a-data:
+  shard1b-data:
+  shard1c-data:
+  shard2a-data:
+  shard2b-data:
+  shard2c-data:
